@@ -46,13 +46,13 @@ describe('Slot API Tests', () => {
         authToken = loginResponse.body.token;
     });
 
-    afterAll(async () => {
-        // Clean up test data
-        await Slot.deleteMany({});
-        await Event.deleteMany({});
-        await User.deleteMany({});
-        await mongoose.connection.close();
-    });
+    // afterAll(async () => {
+    //     // Clean up test data
+    //     await Slot.deleteMany({});
+    //     await Event.deleteMany({});
+    //     await User.deleteMany({});
+    //     await mongoose.connection.close();
+    // });
 
     describe('GET /api/slots/event/:eventId', () => {
         it('should get all slots for an event', async () => {

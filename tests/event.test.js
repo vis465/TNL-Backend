@@ -45,12 +45,12 @@ describe('Event API Tests', () => {
         authToken = loginResponse.body.token;
     });
 
-    afterAll(async () => {
-        // Clean up test data
-        await Event.deleteMany({});
-        await User.deleteMany({});
-        await mongoose.connection.close();
-    });
+    // afterAll(async () => {
+    //     // Clean up test data
+    //     await Event.deleteMany({});
+    //     await User.deleteMany({});
+    //     await mongoose.connection.close();
+    // });
 
     describe('GET /api/events', () => {
         it('should get all events', async () => {

@@ -4,6 +4,7 @@ const Booking = require('../models/Booking');
 const Event = require('../models/Event');
 const { auth, adminAuth } = require('../middleware/auth');
 const Slot = require('../models/Slot');
+const discordService = require('../services/discordService');
 
 // Get all bookings (admin only)
 router.get('/', adminAuth, async (req, res) => {
@@ -55,25 +56,51 @@ router.get('/', adminAuth, async (req, res) => {
 // Create new booking request
 router.post('/', async (req, res) => {
     try {
-        const slot = await Slot.findById(req.body.slotId);
-        console.log(slot);
+        const { eventId, slotNumber, vtcName, vtcLink, name, vtcRole } = req.body;
+
+        // Check if slot is available
+        const slot = await Slot.findOne({ eventId, slotNumber });
         if (!slot) {
             return res.status(404).json({ message: 'Slot not found' });
         }
 
+        // Check if slot is already booked
+        const existingBooking = slot.bookings.find(b => b.slotNumber === slotNumber);
+        if (existingBooking) {
+            return res.status(400).json({ message: 'Slot is already booked' });
+        }
+
+        // Get event details for notification
+        const event = await Event.findById(eventId);
+        if (!event) {
+            return res.status(404).json({ message: 'Event not found' });
+        }
+
+        // Create new booking
         const booking = {
-            name: req.body.vtcName,
-            status: 'pending'
+            slotNumber,
+            vtcName,
+            vtcLink,
+            name,
+            vtcRole,
+            status: 'pending',
+            createdAt: new Date()
         };
 
+        // Add booking to slot
         slot.bookings.push(booking);
-        slot.availableSlots -= 1;
         await slot.save();
 
-        res.status(201).json(slot);
+        console.log('Booking created, sending Discord notification...');
+        
+        // Send Discord notification
+        
+
+        console.log('Discord notification sent successfully');
+        res.status(201).json(booking);
     } catch (error) {
         console.error('Error creating booking:', error);
-        res.status(500).json({ message: 'Error creating booking' });
+        res.status(500).json({ message: 'Error creating booking', error: error.message });
     }
 });
 
@@ -127,31 +154,47 @@ router.get('/my-bookings', auth, async (req, res) => {
 // Update booking status (admin only)
 router.patch('/:id/status', adminAuth, async (req, res) => {
     try {
-        const { status, notes } = req.body;
-        console.log('Updating booking status:', { id: req.params.id, status, notes });
+        const { status } = req.body;
+        const bookingId = req.params.id;
 
-        const booking = await Booking.findById(req.params.id);
-        if (!booking) {
-            console.log('Booking not found:', req.params.id);
+        // Find the slot containing the booking
+        const slot = await Slot.findOne({
+            'bookings._id': bookingId
+        });
+
+        if (!slot) {
             return res.status(404).json({ message: 'Booking not found' });
         }
 
-        booking.status = status;
-        booking.notes = notes || booking.notes;
-        booking.approvedBy = req.user._id;
-        await booking.save();
+        // Find the specific booking
+        const booking = slot.bookings.find(b => b._id.toString() === bookingId);
+        if (!booking) {
+            return res.status(404).json({ message: 'Booking not found' });
+        }
 
-        console.log('Booking status updated successfully');
-        res.json({
-            message: 'Booking status updated successfully',
-            booking
+        // Get event details for notification
+        const event = await Event.findById(slot.eventId);
+        if (!event) {
+            return res.status(404).json({ message: 'Event not found' });
+        }
+
+        // Update booking status
+        booking.status = status;
+        await slot.save();
+
+        console.log('Booking status updated, sending Discord notification...');
+
+        // Send Discord notification for status update
+        await discordService.sendBookingStatusUpdate({
+            ...booking.toObject(),
+            eventTitle: event.title
         });
+
+        console.log('Discord status update notification sent successfully');
+        res.json(booking);
     } catch (error) {
         console.error('Error updating booking status:', error);
-        res.status(500).json({ 
-            message: 'Error updating booking status', 
-            error: error.message 
-        });
+        res.status(500).json({ message: 'Error updating booking status', error: error.message });
     }
 });
 

@@ -5,6 +5,7 @@ const Booking = require('../models/Booking');
 const { auth, adminAuth } = require('../middleware/auth');
 const Slot = require('../models/Slot');
 const mongoose = require('mongoose');
+const discordService = require('../services/discordService');
 
 // Get slots for an event
 router.get('/event/:eventId', async (req, res) => {
@@ -183,6 +184,13 @@ router.post('/:slotId/request', async (req, res) => {
         if (!slot.slots[slotIndex].isAvailable) {
             return res.status(400).json({ message: 'This slot is already booked' });
         }
+        console.log("eventid", slot.eventId)
+        // Get event details for notification
+        const event = await Event.findOne({ truckersmpId: slot.eventId });
+        console.log(event)
+        if (!event) {
+            return res.status(404).json({ message: 'Event not found' });
+        }
 
         // Create booking
         slot.slots[slotIndex].isAvailable = false;
@@ -191,11 +199,25 @@ router.post('/:slotId/request', async (req, res) => {
             vtcName,
             vtcRole,
             vtcLink,
-            status: 'pending'
+            status: 'pending',
+            createdAt: new Date()
         };
 
         await slot.save();
         console.log('Slot request created:', slot.slots[slotIndex]);
+
+        // Send Discord notification
+        console.log('Sending Discord notification for new booking...');
+        await discordService.sendBookingNotification({
+            eventTitle: event.title,
+            slotNumber: slot.slots[slotIndex].number,
+            vtcName: slot.slots[slotIndex].booking.vtcName,
+            vtcLink: slot.slots[slotIndex].booking.vtcLink,
+            name: slot.slots[slotIndex].booking.name,
+            vtcRole: slot.slots[slotIndex].booking.vtcRole,
+            status: slot.slots[slotIndex].booking.status
+        });
+        console.log('Discord notification sent successfully');
 
         res.json({
             message: 'Slot request submitted successfully',
@@ -332,6 +354,121 @@ router.delete('/event/:eventId/slot/:slotId', async (req, res) => {
     } catch (error) {
         console.error('Error deleting slot:', error);
         res.status(500).json({ message: 'Error deleting slot' });
+    }
+});
+
+// Create new slot request
+router.post('/request', auth, async (req, res) => {
+    try {
+        const { eventId, slotNumber, vtcName, vtcLink, name, vtcRole } = req.body;
+
+        // Find the slot
+        const slot = await Slot.findOne({ eventId, 'slots.number': slotNumber });
+        if (!slot) {
+            return res.status(404).json({ message: 'Slot not found' });
+        }
+
+        // Find the specific slot in the slots array
+        const slotIndex = slot.slots.findIndex(s => s.number === slotNumber);
+        if (slotIndex === -1) {
+            return res.status(404).json({ message: 'Slot not found' });
+        }
+
+        // Check if slot is already booked
+        if (slot.slots[slotIndex].booking) {
+            return res.status(400).json({ message: 'Slot is already booked' });
+        }
+
+        // Get event details for notification
+        const event = await Event.findById(eventId);
+        if (!event) {
+            return res.status(404).json({ message: 'Event not found' });
+        }
+
+        // Create booking
+        const booking = {
+            name: vtcName,
+            vtcName: vtcName,
+            vtcRole: vtcRole,
+            vtcLink: vtcLink,
+            status: 'pending',
+            createdAt: new Date()
+        };
+
+        // Update slot with booking
+        slot.slots[slotIndex].booking = booking;
+        slot.slots[slotIndex].isAvailable = false;
+        await slot.save();
+
+        console.log('Slot request created:', slot.slots[slotIndex]);
+
+        // Send Discord notification
+        console.log('Sending Discord notification for new booking...');
+       
+        console.log('Discord notification sent successfully');
+
+        res.json({
+            message: 'Slot request submitted successfully',
+            booking: slot.slots[slotIndex].booking
+        });
+    } catch (error) {
+        console.error('Error creating slot request:', error);
+        res.status(500).json({ message: 'Error creating slot request', error: error.message });
+    }
+});
+
+// Update slot request status (admin only)
+router.patch('/request/:id/status', adminAuth, async (req, res) => {
+    try {
+        const { status } = req.body;
+        const slotId = req.params.id;
+
+        // Find the slot containing the booking
+        const slot = await Slot.findOne({
+            'slots.booking._id': slotId
+        });
+
+        if (!slot) {
+            return res.status(404).json({ message: 'Slot request not found' });
+        }
+
+        // Find the specific slot and booking
+        const slotIndex = slot.slots.findIndex(s => s.booking && s.booking._id.toString() === slotId);
+        if (slotIndex === -1) {
+            return res.status(404).json({ message: 'Slot request not found' });
+        }
+
+        // Get event details for notification
+        const event = await Event.findById(slot.eventId);
+        if (!event) {
+            return res.status(404).json({ message: 'Event not found' });
+        }
+
+        // Update booking status
+        slot.slots[slotIndex].booking.status = status;
+        await slot.save();
+
+        console.log('Slot request status updated, sending Discord notification...');
+        
+        // Send Discord notification for status update
+        await discordService.sendBookingStatusUpdate({
+            eventTitle: event.title,
+            slotNumber: slot.slots[slotIndex].number,
+            vtcName: slot.slots[slotIndex].booking.vtcName,
+            vtcLink: slot.slots[slotIndex].booking.vtcLink,
+            name: slot.slots[slotIndex].booking.name,
+            vtcRole: slot.slots[slotIndex].booking.vtcRole,
+            status: status
+        });
+        console.log('Discord status update notification sent successfully');
+
+        res.json({
+            message: 'Slot request status updated successfully',
+            booking: slot.slots[slotIndex].booking
+        });
+    } catch (error) {
+        console.error('Error updating slot request status:', error);
+        res.status(500).json({ message: 'Error updating slot request status', error: error.message });
     }
 });
 
