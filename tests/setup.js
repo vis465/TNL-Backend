@@ -12,7 +12,7 @@ console.log = jest.fn();
 console.error = jest.fn();
 
 // Clean up after all tests
-afterAll(async () => {
-    // Close MongoDB connection
-    await mongoose.connection.close();
-});
+// afterAll(async () => {
+//     // Close MongoDB connection
+//     await mongoose.connection.close();
+// });

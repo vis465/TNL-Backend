@@ -46,13 +46,7 @@ describe('Booking API Tests', () => {
         authToken = loginResponse.body.token;
     });
 
-    afterAll(async () => {
-        // Clean up test data
-        await Booking.deleteMany({});
-        await Event.deleteMany({});
-        await User.deleteMany({});
-        await mongoose.connection.close();
-    });
+  
 
     describe('POST /api/bookings', () => {
         it('should create a new booking', async () => {

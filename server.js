@@ -11,12 +11,22 @@ const authRoutes = require('./routes/auth');
 const eventRoutes = require('./routes/events');
 const bookingsRouter = require('./routes/bookings');
 const slotsRouter = require('./routes/slots');
+const serversRouter = require('./routes/servers');
 
 const app = express();
 
+// Validate required environment variables
+const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET', 'DISCORD_WEBHOOK_URL'];
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+    console.error('Missing required environment variables:', missingEnvVars.join(', '));
+    process.exit(1);
+}
+
 // Middleware
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: '*',
     credentials: true
 }));
 app.use(express.json());
@@ -38,13 +48,16 @@ app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/slots', slotsRouter);
+app.use('/api/servers', serversRouter); 
 
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({ message: 'Something went wrong!', error: err.message });
 });
-
+app.get('/', (req, res) => {
+    res.send('Hello World');
+});
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

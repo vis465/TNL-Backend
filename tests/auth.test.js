@@ -16,11 +16,11 @@ describe('Auth API Tests', () => {
         });
     });
 
-    afterAll(async () => {
-        // Clean up test data
-        await User.deleteMany({});
-        await mongoose.connection.close();
-    });
+    // afterAll(async () => {
+    //     // Clean up test data
+    //     await User.deleteMany({});
+    //     await mongoose.connection.close();
+    // });
 
     describe('POST /api/auth/register', () => {
         it('should register a new user', async () => {
