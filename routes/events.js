@@ -138,7 +138,23 @@ router.get('/', async (req, res) => {
         });
     }
 });
-
+router.get("/attending",async (req,res)=>{
+    try{
+    const tmpevents=await axiosInstance.get("https://api.truckersmp.com/v2/vtc/70030/events/attending");
+    if(!tmpevents.data.response){
+        return res.status(404).json({message:"No events found"});
+    }
+    
+    res.json(tmpevents.data.response);}
+    catch(error){
+        console.error('Error fetching attending events:', error.message || error);
+        res.status(500).json({ 
+            message: 'Error fetching attending events', 
+            error: error.message,
+            stack: error.stack
+        });
+    }
+})
 // Get single event by ID
 router.get('/:id', async (req, res) => {
     try {
@@ -153,7 +169,7 @@ router.get('/:id', async (req, res) => {
         
         if (!event) {
             // If not found locally, fetch from TruckersMP
-            const response = await axiosInstance.get(`https://api.truckersmp.com/v2/vtc/70030/events/${id}`, {
+            const response = await axiosInstance.get(`https://api.truckersmp.com/v2/events/${id}`, {
                 headers: {
                     'Accept': 'application/json',
                     'User-Agent': 'TNL-Booking-System/1.0',

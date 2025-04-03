@@ -21,25 +21,43 @@ router.post('/register', adminAuth, async (req, res) => {
 
         // Validate required fields
         if (!username || !password || !email) {
-            return res.status(400).json({ message: 'Username, password, and email are required' });
+            return res.status(400).json({ 
+                message: 'Username, password, and email are required',
+                details: {
+                    username: !username ? 'Username is required' : null,
+                    password: !password ? 'Password is required' : null,
+                    email: !email ? 'Email is required' : null
+                }
+            });
         }
 
-        // Admins don't need a vtcName, but public users do
-        if (!vtcName && req.body.role !== 'admin') {
-            return res.status(400).json({ message: 'VTC Name is required for public users' });
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ 
+                message: 'Invalid email format'
+            });
         }
 
         // Check if the user already exists
-        const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+        const existingUser = await User.findOne({ 
+            $or: [
+                { email: email.toLowerCase() }, 
+                { username: username.toLowerCase() }
+            ] 
+        });
+        
         if (existingUser) {
-            return res.status(400).json({ message: 'User with this email or username already exists' });
+            return res.status(400).json({ 
+                message: 'User with this email or username already exists'
+            });
         }
 
         // Create new admin user
         const user = new User({
-            username,
+            username: username.toLowerCase(),
             password, // This will be hashed automatically in the User model
-            email,
+            email: email.toLowerCase(),
             vtcName: vtcName || null, // Admins can have null vtcName
             role: 'admin'
         });
@@ -65,8 +83,11 @@ router.post('/register', adminAuth, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error in admin registration:', error);
-        res.status(500).json({ message: 'Error registering admin user', error: error.message });
+        console.error('Registration error:', error);
+        res.status(500).json({ 
+            message: 'Error registering user',
+            error: error.message 
+        });
     }
 });
 
