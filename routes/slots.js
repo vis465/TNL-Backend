@@ -161,11 +161,11 @@ router.post('/event/:eventId', async (req, res) => {
 // Request a slot
 router.post('/:slotId/request', async (req, res) => {
     try {
-        const { name, vtcName, vtcRole, vtcLink, slotNumber } = req.body;
-        console.log('Requesting slot:', { slotId: req.params.slotId, slotNumber, name, vtcName });
+        const { name, vtcName, vtcRole, vtcLink, slotNumber,playercount } = req.body;
+        console.log('Requesting slot:', { slotId: req.params.slotId, slotNumber, name, vtcName,playercount });
 
         // Validate required fields
-        if (!name || !vtcName || !slotNumber) {
+        if (!name || !vtcName || !slotNumber,!playercount) {
             return res.status(400).json({ message: 'Missing required fields' });
         }
 
@@ -199,6 +199,7 @@ router.post('/:slotId/request', async (req, res) => {
             vtcName,
             vtcRole,
             vtcLink,
+            playercount,
             status: 'pending',
             createdAt: new Date()
         };

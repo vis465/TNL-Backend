@@ -5,6 +5,7 @@ const bookingSchema = new mongoose.Schema({
     vtcName: { type: String, required: true },
     vtcRole: String,
     vtcLink: String,
+    playercount:String,
     status: {
         type: String,
         enum: ['pending', 'approved', 'rejected'],
