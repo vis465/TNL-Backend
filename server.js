@@ -23,12 +23,14 @@ if (missingEnvVars.length > 0) {
     console.error('Missing required environment variables:', missingEnvVars.join(', '));
     process.exit(1);
 }
+    
 
-// Middleware
 app.use(cors({
     origin: '*',
     credentials: true
 }));
+
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

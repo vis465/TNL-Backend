@@ -145,6 +145,7 @@ router.get("/attending",async (req,res)=>{
         return res.status(404).json({message:"No events found"});
     }
     
+    
     res.json(tmpevents.data.response);}
     catch(error){
         console.error('Error fetching attending events:', error.message || error);
@@ -166,8 +167,8 @@ router.get('/:id', async (req, res) => {
         
         // First try to get from local database
         let event = await Event.findOne({ truckersmpId: id });
-        
-        if (!event) {
+        let eventData={};
+        if (true) {
             // If not found locally, fetch from TruckersMP
             const response = await axiosInstance.get(`https://api.truckersmp.com/v2/events/${id}`, {
                 headers: {
@@ -176,18 +177,16 @@ router.get('/:id', async (req, res) => {
                     'Cache-Control': 'no-cache'
                 }
             });
-
             if (!response.data || !response.data.response) {
                 return res.status(404).json({ message: 'Event not found' });
             }
-
             const truckersmpEvent = response.data.response;
             console.log('Received event data from TruckersMP:', truckersmpEvent);
 
             const startDate = truckersmpEvent.start_at ? new Date(truckersmpEvent.start_at) : new Date();
             const endDate = truckersmpEvent.end_at ? new Date(truckersmpEvent.end_at) : startDate; // Use start date as fallback
-
-            const eventData = {
+            console.log("truckersmpEvent.id",truckersmpEvent.id)
+            eventData = {
                 truckersmpId: truckersmpEvent.id.toString(),
                 title: truckersmpEvent.name || 'Untitled Event',
                 description: truckersmpEvent.description || 'No description available',
@@ -211,11 +210,10 @@ router.get('/:id', async (req, res) => {
             };
 
             // Create new event in local database
-            event = new Event(eventData);
-            await event.save();
+            
         }
 
-        res.json(event);
+        res.json(eventData);
     } catch (error) {
         console.error('Error fetching event:', error.response?.data || error.message);
         res.status(500).json({ 
@@ -234,7 +232,7 @@ function getEventStatus(startAt, endAt) {
     if (now < start) return 'upcoming';
     if (now >= start && now <= end) return 'ongoing';
     if (now > end) return 'completed';
-    return 'cancelled';
+    return 'completed';
 }
 
 // Upload slot image (admin only)
