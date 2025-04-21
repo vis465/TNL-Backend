@@ -185,10 +185,10 @@ router.patch('/:id/status', adminAuth, async (req, res) => {
         console.log('Booking status updated, sending Discord notification...');
 
         // Send Discord notification for status update
-        await discordService.sendBookingStatusUpdate({
-            ...booking.toObject(),
-            eventTitle: event.title
-        });
+        // await discordService.sendBookingStatusUpdate({
+        //     ...booking.toObject(),
+        //     eventTitle: event.title
+        // });
 
         console.log('Discord status update notification sent successfully');
         res.json(booking);

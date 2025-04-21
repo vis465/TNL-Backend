@@ -110,38 +110,68 @@ router.post('/event/:eventId', async (req, res) => {
             allNewSlotNumbers = [...allNewSlotNumbers, ...slotNumbers];
         }
 
-        // Check for duplicates within new slots
-        const duplicatesInNew = allNewSlotNumbers.filter((num, index) => 
-            allNewSlotNumbers.indexOf(num) !== index
-        );
+        // Check for duplicates within each individual slot image only
+        for (const slotData of req.body.slots) {
+            const slotNumbers = slotData.slots.map(s => s.number);
+            const duplicatesInSlot = slotNumbers.filter((num, index) => 
+                slotNumbers.indexOf(num) !== index
+            );
 
-        // Check for duplicates with existing slots
-        const duplicatesWithExisting = allNewSlotNumbers.filter(num => 
-            existingSlotNumbers.includes(num)
-        );
-
-        if (duplicatesInNew.length > 0 || duplicatesWithExisting.length > 0) {
-            const duplicates = [...new Set([...duplicatesInNew, ...duplicatesWithExisting])];
-            return res.status(400).json({ 
-                message: `Duplicate slot numbers found: ${duplicates.join(', ')}` 
-            });
+            if (duplicatesInSlot.length > 0) {
+                const duplicates = [...new Set(duplicatesInSlot)];
+                return res.status(400).json({ 
+                    message: `Duplicate slot numbers found within a single slot image: ${duplicates.join(', ')}` 
+                });
+            }
         }
 
         // Create new slots
         const createdSlots = [];
-        for (const [index, slotData] of req.body.slots.entries()) {
-            const slot = new Slot({
-                eventId: event.truckersmpId,
-                imageUrl: slotData.imageUrl,
-                imageNumber: existingSlots.length + index + 1,
-                slots: slotData.slots.map(s => ({
-                    number: parseInt(s.number),
-                    isAvailable: true
-                }))
-            });
-
-            const savedSlot = await slot.save();
+        
+        // Check if we're adding new slots or updating existing ones
+        if (req.body.isUpdate && req.body.slotId) {
+            // Update existing slot
+            const existingSlot = await Slot.findById(req.body.slotId);
+            if (!existingSlot) {
+                return res.status(404).json({ message: 'Slot not found' });
+            }
+            
+            // Update the slot with new data
+            existingSlot.imageUrl = req.body.slots[0].imageUrl;
+            existingSlot.slots = req.body.slots[0].slots.map(s => ({
+                number: parseInt(s.number),
+                isAvailable: true
+            }));
+            
+            const savedSlot = await existingSlot.save();
             createdSlots.push(savedSlot);
+        } else {
+            // Add new slots
+            for (const [index, slotData] of req.body.slots.entries()) {
+                // Check if this slot image already exists
+                const existingSlot = existingSlots.find(slot => 
+                    slot.imageUrl === slotData.imageUrl
+                );
+                
+                if (existingSlot) {
+                    // Skip this slot as it already exists
+                    console.log(`Skipping duplicate slot image: ${slotData.imageUrl}`);
+                    continue;
+                }
+                
+                const slot = new Slot({
+                    eventId: event.truckersmpId,
+                    imageUrl: slotData.imageUrl,
+                    imageNumber: existingSlots.length + createdSlots.length + 1,
+                    slots: slotData.slots.map(s => ({
+                        number: parseInt(s.number),
+                        isAvailable: true
+                    }))
+                });
+
+                const savedSlot = await slot.save();
+                createdSlots.push(savedSlot);
+            }
         }
 
         console.log('Created slots:', createdSlots);
@@ -235,14 +265,30 @@ router.get('/bookings', async (req, res) => {
     try {
         const slots = await Slot.find();
         const bookings = [];
+        
+        // Get all unique event IDs
+        const eventIds = [...new Set(slots.map(slot => slot.eventId))];
+        
+        // Fetch all events in one query
+        const events = await Event.find({ truckersmpId: { $in: eventIds } });
+        
+        // Create a map for quick lookup
+        const eventMap = {};
+        events.forEach(event => {
+            eventMap[event.truckersmpId] = event;
+        });
 
         slots.forEach(slot => {
             slot.slots.forEach(s => {
                 if (s.booking) {
+                    // Get event details from the map
+                    const event = eventMap[slot.eventId];
+                    
                     bookings.push({
                         _id: s._id, // Use the slot's _id
                         slotId: slot._id,
                         eventId: slot.eventId,
+                        eventTitle: event ? event.title : 'Unknown Event',
                         imageUrl: slot.imageUrl,
                         imageNumber: slot.imageNumber,
                         slotNumber: s.number,
@@ -470,6 +516,76 @@ router.patch('/request/:id/status', adminAuth, async (req, res) => {
     } catch (error) {
         console.error('Error updating slot request status:', error);
         res.status(500).json({ message: 'Error updating slot request status', error: error.message });
+    }
+});
+
+// Delete slot image (admin only)
+router.delete('/:eventId/slot/:slotId', adminAuth, async (req, res) => {
+    try {
+        const { eventId, slotId } = req.params;
+        
+        // Validate slotId is a valid MongoDB ObjectId
+        if (!mongoose.Types.ObjectId.isValid(slotId)) {
+            return res.status(400).json({ message: 'Invalid slot ID format' });
+        }
+        
+        const slot = await Slot.findById(slotId);
+        if (!slot) {
+            return res.status(404).json({ message: 'Slot not found' });
+        }
+
+        if (slot.eventId !== eventId) {
+            return res.status(403).json({ message: 'Slot does not belong to this event' });
+        }
+
+        // Check if there are any approved bookings
+        const hasApprovedBookings = slot.slots.some(s => s.booking?.status === 'approved');
+        if (hasApprovedBookings) {
+            return res.status(400).json({ message: 'Cannot delete slot with approved bookings' });
+        }
+
+        await Slot.findByIdAndDelete(slotId);
+        res.json({ message: 'Slot image deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting slot image:', error);
+        res.status(500).json({ message: 'Error deleting slot image' });
+    }
+});
+
+// Delete approved slot request (admin only)
+router.delete('/:slotId/bookings/:slotNumber', adminAuth, async (req, res) => {
+    try {
+        const { slotId, slotNumber } = req.params;
+        
+        // Validate slotId is a valid MongoDB ObjectId
+        if (!mongoose.Types.ObjectId.isValid(slotId)) {
+            return res.status(400).json({ message: 'Invalid slot ID format' });
+        }
+        
+        const slot = await Slot.findById(slotId);
+        if (!slot) {
+            return res.status(404).json({ message: 'Slot not found' });
+        }
+
+        const slotIndex = slot.slots.findIndex(s => s.number === parseInt(slotNumber));
+        if (slotIndex === -1) {
+            return res.status(404).json({ message: 'Slot number not found' });
+        }
+
+        const booking = slot.slots[slotIndex].booking;
+        if (!booking || booking.status !== 'approved') {
+            return res.status(400).json({ message: 'No approved booking found for this slot' });
+        }
+
+        // Clear the booking and make the slot available again
+        slot.slots[slotIndex].booking = null;
+        slot.slots[slotIndex].isAvailable = true;
+        await slot.save();
+
+        res.json({ message: 'Approved booking deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting approved booking:', error);
+        res.status(500).json({ message: 'Error deleting approved booking' });
     }
 });
 

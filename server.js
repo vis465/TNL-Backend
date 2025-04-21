@@ -12,6 +12,7 @@ const eventRoutes = require('./routes/events');
 const bookingsRouter = require('./routes/bookings');
 const slotsRouter = require('./routes/slots');
 const serversRouter = require('./routes/servers');
+const analyticsRouter = require('./routes/analytics');
 
 const app = express();
 
@@ -50,7 +51,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/slots', slotsRouter);
-app.use('/api/servers', serversRouter); 
+app.use('/api/servers', serversRouter);
+app.use('/api/analytics', analyticsRouter); 
 
 // Error handling middleware
 app.use((err, req, res, next) => {

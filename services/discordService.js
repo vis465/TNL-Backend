@@ -24,7 +24,7 @@ class DiscordService {
             console.log('Preparing Discord notification for booking:', JSON.stringify(booking, null, 2));
             
             const embed = {
-                title: '🎮 New Slot Booking Request',
+                title: `🎮 Slot Booking Request from ${booking.vtcName} for ${booking.eventTitle}`,
                 color: 0x00ff00, // Green color
                 fields: [
                     {
@@ -56,7 +56,8 @@ class DiscordService {
                         name: 'Status',
                         value: booking.status || 'Pending',
                         inline: true
-                    }
+                    },
+                    
                 ],
                 timestamp: new Date().toISOString(),
                 footer: {
@@ -72,6 +73,11 @@ class DiscordService {
                     inline: false
                 });
             }
+            embed.fields.push({
+                name: 'Take action ',
+                value: `[Manage slot booking](https://events.tamilnadulogistics.in/admin)`,
+                inline: true
+            })
 
             const payload = {
                 content: '<@&1335290164750319706> <@&1335289849145724928> <@&1335290367347658762> <@&1335290229321498768>',
@@ -79,20 +85,14 @@ class DiscordService {
             };
 
             console.log('Sending Discord webhook request...');
-            console.log('Webhook URL:', this.webhookUrl);
-            console.log('Payload:', JSON.stringify(payload, null, 2));
-
+           
             const response = await axios.post(this.webhookUrl, payload, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
             });
 
-            console.log('Discord API Response:', {
-                status: response.status,
-                statusText: response.statusText,
-                data: response.data
-            });
+           
 
             if (response.status === 204) {
                 console.log('Discord notification sent successfully');
