@@ -14,6 +14,18 @@ const bookingSchema = new mongoose.Schema({
     createdAt: {
         type: Date,
         default: Date.now
+    },
+    discordUsername: {
+        type: String,
+        required: true
+    },
+    vtc: String,
+    truck: String,
+    trailer: String,
+    notes: String,
+    approvedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
     }
 });
 

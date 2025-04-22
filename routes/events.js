@@ -50,6 +50,32 @@ router.get('/', async (req, res) => {
 
         console.log(`Received ${truckersmpEvents.length} events from TruckersMP`);
 
+        // Get all event IDs from TruckersMP response
+        const truckersmpEventIds = truckersmpEvents.map(event => event.id.toString());
+        
+        // Find events in our database that are not in TruckersMP response
+        const eventsToDelete = await Event.find({
+            truckersmpId: { $nin: truckersmpEventIds }
+        });
+
+        // Delete events that no longer exist in TruckersMP
+        if (eventsToDelete.length > 0) {
+            console.log(`Deleting ${eventsToDelete.length} events that no longer exist in TruckersMP`);
+            for (const event of eventsToDelete) {
+                try {
+                    // Delete associated slots first
+                    await Slot.deleteMany({ eventId: event._id });
+                    console.log(`Deleted slots for event ${event.truckersmpId}`);
+                    
+                    // Then delete the event
+                    await Event.findByIdAndDelete(event._id);
+                    console.log(`Deleted event ${event.truckersmpId}`);
+                } catch (error) {
+                    console.error(`Error deleting event ${event.truckersmpId}:`, error);
+                }
+            }
+        }
+
         // Process and upsert events
         const results = await Promise.allSettled(
             truckersmpEvents.map(async (event) => {
