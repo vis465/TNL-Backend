@@ -3,42 +3,18 @@ const axios = require('axios');
 class DiscordService {
     constructor() {
         this.webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-        this.client = null;
         this.initialized = false;
-        console.log('DiscordService initialized with webhook URL:', this.webhookUrl ? 'Configured' : 'Not configured');
-        if (this.webhookUrl) {
-            console.log('Webhook URL format:', this.webhookUrl.startsWith('https://discord.com/api/webhooks/') ? 'Valid' : 'Invalid');
-        }
     }
 
     async initialize() {
         if (this.initialized) return;
         
-        try {
-            // Initialize Discord client if needed
-            if (process.env.DISCORD_BOT_TOKEN) {
-                const { Client, GatewayIntentBits } = require('discord.js');
-                this.client = new Client({
-                    intents: [
-                        GatewayIntentBits.Guilds,
-                        GatewayIntentBits.GuildMessages,
-                        GatewayIntentBits.DirectMessages
-                    ]
-                });
-                
-                this.client.on('ready', () => {
-                    console.log(`Discord bot logged in as ${this.client.user.tag}`);
-                });
-                
-                await this.client.login(process.env.DISCORD_BOT_TOKEN);
-            }
-            
-            this.initialized = true;
-        } catch (error) {
-            console.error('Failed to initialize Discord service:', error);
-            // Don't throw the error, just log it and continue
-            // This prevents the server from crashing if Discord is unavailable
+        if (!this.webhookUrl) {
+            console.warn('Discord webhook URL not configured');
+            return;
         }
+
+        this.initialized = true;
     }
 
     async sendBookingNotification(booking) {
@@ -111,11 +87,12 @@ class DiscordService {
                     inline: false
                 });
             }
+
             embed.fields.push({
-                name: 'Take action ',
+                name: 'Take action',
                 value: `[Manage slot booking](https://events.tamilnadulogistics.in/admin)`,
                 inline: true
-            })
+            });
 
             const payload = {
                 content: '<@&1335290164750319706> <@&1335289849145724928> <@&1335290367347658762> <@&1335290229321498768>',
@@ -152,20 +129,27 @@ class DiscordService {
             await this.initialize();
             
             if (!this.webhookUrl) {
-                console.warn('Discord webhook URL not configured. Skipping status update notification.');
+                console.warn('Discord webhook URL not configured. Skipping notification.');
                 return;
             }
 
             if (!this.webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
-                console.warn('Invalid Discord webhook URL format. Skipping status update notification.');
+                console.warn('Invalid Discord webhook URL format. Skipping notification.');
                 return;
             }
 
-            console.log('Preparing Discord status update for booking:', JSON.stringify(booking, null, 2));
-            
-            const statusColor = booking.status === 'approved' ? 0x00ff00 : // Green
-                              booking.status === 'rejected' ? 0xff0000 : // Red
-                              0xffa500; // Orange for pending
+            // Set color based on status
+            let statusColor;
+            switch (booking.status) {
+                case 'approved':
+                    statusColor = 0x00ff00; // Green
+                    break;
+                case 'rejected':
+                    statusColor = 0xff0000; // Red
+                    break;
+                default:
+                    statusColor = 0xffa500; // Orange for pending
+            }
 
             const embed = {
                 title: '🔄 Booking Status Update',
@@ -224,7 +208,7 @@ class DiscordService {
                     console.log('Discord status update notification sent with status:', response.status);
                 }
             } catch (error) {
-                console.error('Error sending Discord webhook for status update:', error.message);
+                console.error('Error sending Discord webhook:', error.message);
                 // Don't throw the error, just log it and continue
             }
         } catch (error) {
