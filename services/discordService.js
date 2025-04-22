@@ -3,24 +3,58 @@ const axios = require('axios');
 class DiscordService {
     constructor() {
         this.webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+        this.client = null;
+        this.initialized = false;
         console.log('DiscordService initialized with webhook URL:', this.webhookUrl ? 'Configured' : 'Not configured');
         if (this.webhookUrl) {
             console.log('Webhook URL format:', this.webhookUrl.startsWith('https://discord.com/api/webhooks/') ? 'Valid' : 'Invalid');
         }
     }
 
-    async sendBookingNotification(booking) {
-        if (!this.webhookUrl) {
-            console.error('Discord webhook URL not configured. Please check your environment variables.');
-            return;
-        }
-
-        if (!this.webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
-            console.error('Invalid Discord webhook URL format. URL should start with https://discord.com/api/webhooks/');
-            return;
-        }
-
+    async initialize() {
+        if (this.initialized) return;
+        
         try {
+            // Initialize Discord client if needed
+            if (process.env.DISCORD_BOT_TOKEN) {
+                const { Client, GatewayIntentBits } = require('discord.js');
+                this.client = new Client({
+                    intents: [
+                        GatewayIntentBits.Guilds,
+                        GatewayIntentBits.GuildMessages,
+                        GatewayIntentBits.DirectMessages
+                    ]
+                });
+                
+                this.client.on('ready', () => {
+                    console.log(`Discord bot logged in as ${this.client.user.tag}`);
+                });
+                
+                await this.client.login(process.env.DISCORD_BOT_TOKEN);
+            }
+            
+            this.initialized = true;
+        } catch (error) {
+            console.error('Failed to initialize Discord service:', error);
+            // Don't throw the error, just log it and continue
+            // This prevents the server from crashing if Discord is unavailable
+        }
+    }
+
+    async sendBookingNotification(booking) {
+        try {
+            await this.initialize();
+            
+            if (!this.webhookUrl) {
+                console.warn('Discord webhook URL not configured. Skipping notification.');
+                return;
+            }
+
+            if (!this.webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
+                console.warn('Invalid Discord webhook URL format. Skipping notification.');
+                return;
+            }
+
             console.log('Preparing Discord notification for booking:', JSON.stringify(booking, null, 2));
             
             const embed = {
@@ -57,7 +91,11 @@ class DiscordService {
                         value: booking.status || 'Pending',
                         inline: true
                     },
-                    
+                    {
+                        name: 'Discord Username',
+                        value: booking.discordUsername || 'N/A',
+                        inline: true
+                    }
                 ],
                 timestamp: new Date().toISOString(),
                 footer: {
@@ -85,52 +123,44 @@ class DiscordService {
             };
 
             console.log('Sending Discord webhook request...');
-           
-            const response = await axios.post(this.webhookUrl, payload, {
-                headers: {
-                    'Content-Type': 'application/json'
+            
+            try {
+                const response = await axios.post(this.webhookUrl, payload, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 5000 // 5 second timeout
+                });
+
+                if (response.status === 204) {
+                    console.log('Discord notification sent successfully');
+                } else {
+                    console.log('Discord notification sent with status:', response.status);
                 }
-            });
-
-           
-
-            if (response.status === 204) {
-                console.log('Discord notification sent successfully');
-            } else {
-                console.log('Discord notification sent with status:', response.status);
+            } catch (error) {
+                console.error('Error sending Discord webhook:', error.message);
+                // Don't throw the error, just log it and continue
             }
         } catch (error) {
-            console.error('Error sending Discord notification:', error.message);
-            if (error.response) {
-                console.error('Discord API response:', {
-                    status: error.response.status,
-                    data: error.response.data,
-                    headers: error.response.headers
-                });
-            }
-            if (error.request) {
-                console.error('Request details:', {
-                    method: error.request.method,
-                    path: error.request.path,
-                    headers: error.request.headers
-                });
-            }
-            throw error;
+            console.error('Error in sendBookingNotification:', error.message);
+            // Don't throw the error, just log it and continue
         }
     }
 
     async sendBookingStatusUpdate(booking) {
-        if (!this.webhookUrl) {
-            console.error('Discord webhook URL not configured. Please check your environment variables.');
-            return;
-        }
-
-        if (!this.webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
-            console.error('Invalid Discord webhook URL format. URL should start with https://discord.com/api/webhooks/');
-            return;
-        }
-
         try {
+            await this.initialize();
+            
+            if (!this.webhookUrl) {
+                console.warn('Discord webhook URL not configured. Skipping status update notification.');
+                return;
+            }
+
+            if (!this.webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
+                console.warn('Invalid Discord webhook URL format. Skipping status update notification.');
+                return;
+            }
+
             console.log('Preparing Discord status update for booking:', JSON.stringify(booking, null, 2));
             
             const statusColor = booking.status === 'approved' ? 0x00ff00 : // Green
@@ -160,6 +190,11 @@ class DiscordService {
                         name: 'New Status',
                         value: booking.status.charAt(0).toUpperCase() + booking.status.slice(1),
                         inline: true
+                    },
+                    {
+                        name: 'Discord Username',
+                        value: booking.discordUsername || 'N/A',
+                        inline: true
                     }
                 ],
                 timestamp: new Date().toISOString(),
@@ -169,47 +204,32 @@ class DiscordService {
             };
 
             const payload = {
+                content: '<@&1335290164750319706> <@&1335289849145724928> <@&1335290367347658762> <@&1335290229321498768>',
                 embeds: [embed]
             };
 
-            console.log('Sending Discord webhook request...');
-            console.log('Webhook URL:', this.webhookUrl);
-            console.log('Payload:', JSON.stringify(payload, null, 2));
+            console.log('Sending Discord webhook request for status update...');
+            
+            try {
+                const response = await axios.post(this.webhookUrl, payload, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 5000 // 5 second timeout
+                });
 
-            const response = await axios.post(this.webhookUrl, payload, {
-                headers: {
-                    'Content-Type': 'application/json'
+                if (response.status === 204) {
+                    console.log('Discord status update notification sent successfully');
+                } else {
+                    console.log('Discord status update notification sent with status:', response.status);
                 }
-            });
-
-            console.log('Discord API Response:', {
-                status: response.status,
-                statusText: response.statusText,
-                data: response.data
-            });
-
-            if (response.status === 204) {
-                console.log('Discord status update notification sent successfully');
-            } else {
-                console.log('Discord status update notification sent with status:', response.status);
+            } catch (error) {
+                console.error('Error sending Discord webhook for status update:', error.message);
+                // Don't throw the error, just log it and continue
             }
         } catch (error) {
-            console.error('Error sending Discord status update notification:', error.message);
-            if (error.response) {
-                console.error('Discord API response:', {
-                    status: error.response.status,
-                    data: error.response.data,
-                    headers: error.response.headers
-                });
-            }
-            if (error.request) {
-                console.error('Request details:', {
-                    method: error.request.method,
-                    path: error.request.path,
-                    headers: error.request.headers
-                });
-            }
-            throw error;
+            console.error('Error in sendBookingStatusUpdate:', error.message);
+            // Don't throw the error, just log it and continue
         }
     }
 }
