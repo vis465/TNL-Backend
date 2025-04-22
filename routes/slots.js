@@ -6,7 +6,6 @@ const { auth, adminAuth } = require('../middleware/auth');
 const Slot = require('../models/Slot');
 const mongoose = require('mongoose');
 const discordService = require('../services/discordService');
-const discordBot = require('../services/discordBot');
 
 // Get slots for an event
 router.get('/event/:eventId', async (req, res) => {
@@ -193,15 +192,14 @@ router.post('/event/:eventId', async (req, res) => {
 router.post('/:slotId/request', async (req, res) => {
     console.log('Requesting slot:', req.body);
     try {
-        const { name, vtcName, vtcRole, vtcLink, slotNumber, playercount, discordUsername } = req.body;
-        console.log('Requesting slot:', { slotId: req.params.slotId, slotNumber, name, vtcName, playercount, discordUsername });
+        const { vtcName, vtcRole, vtcLink, slotNumber, playercount, discordUsername } = req.body;
+        console.log('Requesting slot:', { slotId: req.params.slotId, slotNumber, vtcName, playercount, discordUsername });
 
         // Validate required fields
-        if (!name || !vtcName || !slotNumber || !playercount || !discordUsername) {
+        if (!vtcName || !slotNumber || !playercount || !discordUsername) {
             return res.status(400).json({ 
                 message: 'Missing required fields',
                 details: {
-                    name: !name,
                     vtcName: !vtcName,
                     slotNumber: !slotNumber,
                     playercount: !playercount,
@@ -234,7 +232,7 @@ router.post('/:slotId/request', async (req, res) => {
 
         // Create booking with all required fields
         const booking = {
-            name,
+            name: vtcName,
             vtcName,
             vtcRole,
             vtcLink,
@@ -247,7 +245,7 @@ router.post('/:slotId/request', async (req, res) => {
         // Update slot with booking
         slot.slots[slotIndex].isAvailable = false;
         slot.slots[slotIndex].booking = booking;
-
+        console.log("saving")
         await slot.save();
         console.log('Slot request created:', slot.slots[slotIndex]);
 
@@ -262,7 +260,7 @@ router.post('/:slotId/request', async (req, res) => {
                 name: booking.name,
                 vtcRole: booking.vtcRole,
                 status: booking.status,
-                discordUsername: booking.discordUsername
+                discordUsername: discordUsername
             });
             console.log('Discord notification sent successfully');
         } catch (error) {
@@ -334,21 +332,32 @@ router.get('/bookings', async (req, res) => {
 // Update booking status
 router.patch('/:slotId/bookings/:slotNumber', async (req, res) => {
     try {
-        const { status } = req.body;
+        const { status} = req.body;
         const { slotId, slotNumber } = req.params;
-
+        
         console.log('Updating booking status:', { slotId, slotNumber, status });
 
         const slot = await Slot.findById(slotId);
         if (!slot) {
             return res.status(404).json({ message: 'Slot not found' });
         }
-
+        console.log(slot)
         // Find the specific slot
         const slotIndex = slot.slots.findIndex(s => s.number === parseInt(slotNumber));
         if (slotIndex === -1 || !slot.slots[slotIndex].booking) {
             return res.status(404).json({ message: 'Booking not found' });
         }
+// console.log(slotIndex)
+        
+
+        // Get event details for notification
+        const event = await Event.findOne({truckersmpId:slot.eventId});
+        console.log(event)
+        if (!event) {
+            return res.status(404).json({ message: 'Event not found' });
+        }
+
+        console.log(event);
 
         // Update the booking status
         slot.slots[slotIndex].booking.status = status;
@@ -359,16 +368,19 @@ router.patch('/:slotId/bookings/:slotNumber', async (req, res) => {
             slot.slots[slotIndex].booking = null;
         }
 
+        console.log("saving");
         await slot.save();
         console.log('Updated booking status:', slot.slots[slotIndex]);
 
+        // Send Discord webhook notification for status update
+      
         res.json({
             message: 'Booking status updated successfully',
             status
         });
     } catch (error) {
         console.error('Error updating booking status:', error);
-        res.status(500).json({ message: 'Error updating booking status' });
+        res.status(500).json({ message: 'Error updating booking status', error: error.message });
     }
 });
 
@@ -427,7 +439,19 @@ router.delete('/event/:eventId/slot/:slotId', async (req, res) => {
 // Create new slot request
 router.post('/request', auth, async (req, res) => {
     try {
-        const { eventId, slotNumber, vtcName, vtcLink, name, vtcRole } = req.body;
+        const { eventId, slotNumber, vtcName, vtcLink, name, vtcRole, discordUsername } = req.body;
+
+        // Validate required fields
+        if (!vtcName || !slotNumber || !discordUsername) {
+            return res.status(400).json({ 
+                message: 'Missing required fields',
+                details: {
+                    vtcName: !vtcName,
+                    slotNumber: !slotNumber,
+                    discordUsername: !discordUsername
+                }
+            });
+        }
 
         // Find the slot
         const slot = await Slot.findOne({ eventId, 'slots.number': slotNumber });
@@ -458,6 +482,7 @@ router.post('/request', auth, async (req, res) => {
             vtcName: vtcName,
             vtcRole: vtcRole,
             vtcLink: vtcLink,
+            discordUsername: discordUsername,
             status: 'pending',
             createdAt: new Date()
         };
@@ -645,13 +670,15 @@ router.patch('/:eventId/slot/:slotId/status', adminAuth, async (req, res) => {
 
     // Send Discord notification if the booking exists and has a Discord username
     if (slot.booking && slot.booking.discordUsername) {
+        console.log('Sending Discord notification for status update...');
       try {
-        await discordBot.sendBookingNotification(
+        await discordService.sendBookingNotification(
           slot.booking.discordUsername,
           event.title,
           slot.slotNumber,
           status
         );
+
         console.log('Discord notification sent successfully');
       } catch (error) {
         console.error('Error sending Discord notification:', error.message);

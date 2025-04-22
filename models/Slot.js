@@ -17,7 +17,6 @@ const bookingSchema = new mongoose.Schema({
     },
     discordUsername: {
         type: String,
-        required: true
     },
     vtc: String,
     truck: String,

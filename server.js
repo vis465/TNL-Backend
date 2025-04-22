@@ -14,6 +14,8 @@ const slotsRouter = require('./routes/slots');
 const serversRouter = require('./routes/servers');
 const analyticsRouter = require('./routes/analytics');
 
+// Import Discord bot
+
 const app = express();
 
 // Validate required environment variables
@@ -24,7 +26,12 @@ if (missingEnvVars.length > 0) {
     console.error('Missing required environment variables:', missingEnvVars.join(', '));
     process.exit(1);
 }
-    
+
+// Check for Discord bot token
+if (!process.env.DISCORD_BOT_TOKEN) {
+    console.warn('WARNING: DISCORD_BOT_TOKEN is not set. Direct messages will not work.');
+    console.warn('To enable direct messages, add your Discord bot token to the .env file.');
+}
 
 app.use(cors({
     origin: '*',
@@ -45,6 +52,9 @@ mongoose.connect(process.env.MONGODB_URI, {
     console.error('MongoDB connection error:', err);
     process.exit(1);
 });
+
+// Initialize Discord bot
+
 
 // Routes
 app.use('/api/auth', authRoutes);

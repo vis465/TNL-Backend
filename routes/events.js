@@ -207,7 +207,7 @@ router.get('/:id', async (req, res) => {
                 return res.status(404).json({ message: 'Event not found' });
             }
             const truckersmpEvent = response.data.response;
-            console.log('Received event data from TruckersMP:', truckersmpEvent);
+            // console.log('Received event data from TruckersMP:', truckersmpEvent);
 
             const startDate = truckersmpEvent.start_at ? new Date(truckersmpEvent.start_at) : new Date();
             const endDate = truckersmpEvent.end_at ? new Date(truckersmpEvent.end_at) : startDate; // Use start date as fallback
