@@ -59,7 +59,7 @@ router.post('/register', adminAuth, async (req, res) => {
             password, // This will be hashed automatically in the User model
             email: email.toLowerCase(),
             vtcName: vtcName || null, // Admins can have null vtcName
-            role: 'admin'
+            role: 'eventteam'
         });
 
         await user.save();
