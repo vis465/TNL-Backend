@@ -99,9 +99,7 @@ router.post('/event/:eventId', async (req, res) => {
         // Validate and collect all new slot numbers
         let allNewSlotNumbers = [];
         for (const slotData of req.body.slots) {
-            if (!slotData.imageUrl?.includes('imgur.com')) {
-                return res.status(400).json({ message: 'Invalid image URL. Must be from imgur.com' });
-            }
+           
             if (!slotData.slots || !Array.isArray(slotData.slots)) {
                 return res.status(400).json({ message: 'Invalid slot format. Each slot must have a slots array.' });
             }
