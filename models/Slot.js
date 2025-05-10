@@ -36,12 +36,7 @@ const slotSchema = new mongoose.Schema({
     imageUrl: {
         type: String,
         required: true,
-        validate: {
-            validator: function(v) {
-                return v.includes('imgur.com');
-            },
-            message: 'Image URL must be from imgur.com'
-        }
+        
     },
     imageNumber: {
         type: Number,
