@@ -11,7 +11,7 @@ router.get('/dashboard', adminAuth, async (req, res) => {
     try {
         console.log('Fetching analytics dashboard data');
         
-        // Get event attendance statistics from TruckersMP data
+        // Get event attendance statistaics from TruckersMP data
         const events = await Event.find();
         console.log(`Found ${events.length} events`);
         
@@ -279,6 +279,38 @@ router.get('/export-event-slots/:eventId', adminAuth, async (req, res) => {
     } catch (error) {
         console.error('Error exporting event slot data:', error);
         res.status(500).json({ message: 'Error exporting event slot data' });
+    }
+});
+
+// Get recent bookings (latest 10)
+router.get('/recent-bookings', adminAuth, async (req, res) => {
+    try {
+        const slots = await Slot.find();
+        const events = await Event.find();
+        const eventMap = {};
+        events.forEach(event => {
+            eventMap[event.truckersmpId] = event.title;
+        });
+        let bookings = [];
+        slots.forEach(slot => {
+            slot.slots.forEach(s => {
+                if (s.booking) {
+                    bookings.push({
+                        eventTitle: eventMap[slot.eventId] || 'Unknown',
+                        vtcName: s.booking.vtcName,
+                        slotNumber: s.number,
+                        status: s.booking.status,
+                        createdAt: s.booking.createdAt,
+                        discordUsername: s.booking.discordUsername || ''
+                    });
+                }
+            });
+        });
+        bookings = bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 10);
+        res.json({ bookings });
+    } catch (error) {
+        console.error('Error fetching recent bookings:', error);
+        res.status(500).json({ message: 'Error fetching recent bookings' });
     }
 });
 
