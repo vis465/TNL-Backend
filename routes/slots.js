@@ -194,17 +194,17 @@ router.post('/:slotId/request', async (req, res) => {
         console.log('Requesting slot:', { slotId: req.params.slotId, slotNumber, vtcName, playercount, discordUsername });
 
         // Validate required fields
-        if (!vtcName || !slotNumber || !playercount || !discordUsername) {
-            return res.status(400).json({ 
-                message: 'Missing required fields',
-                details: {
-                    vtcName: !vtcName,
-                    slotNumber: !slotNumber,
-                    playercount: !playercount,
-                    discordUsername: !discordUsername
-                }
-            });
-        }
+        // if (!vtcName || !slotNumber || !playercount || !discordUsername) {
+        //     return res.status(400).json({ 
+        //         message: 'Missing required fields',
+        //         details: {
+        //             vtcName: !vtcName,
+        //             slotNumber: !slotNumber,
+        //             playercount: !playercount,
+        //             discordUsername: !discordUsername
+        //         }
+        //     });
+        // }
 
         const slot = await Slot.findById(req.params.slotId);
         if (!slot) {
