@@ -328,37 +328,60 @@ router.get('/bookings', async (req, res) => {
 });
 
 // Update booking status
-router.patch('/:slotId/bookings/:slotNumber', async (req, res) => {
+router.patch('/:slotId/bookings/:slotNumber', adminAuth, async (req, res) => {
     try {
-        const { status} = req.body;
+        const { status } = req.body;
         const { slotId, slotNumber } = req.params;
         
-        console.log('Updating booking status:', { slotId, slotNumber, status });
+        console.log('Updating booking status:', { 
+            slotId, 
+            slotNumber, 
+            status, 
+            user: req.user ? {
+                _id: req.user._id,
+                username: req.user.username,
+                role: req.user.role
+            } : 'No user found'
+        });
 
         const slot = await Slot.findById(slotId);
         if (!slot) {
             return res.status(404).json({ message: 'Slot not found' });
         }
-        console.log(slot)
+        console.log('Found slot:', {
+            eventId: slot.eventId,
+            slotsCount: slot.slots.length,
+            hasBookings: slot.slots.some(s => s.booking)
+        });
+
         // Find the specific slot
         const slotIndex = slot.slots.findIndex(s => s.number === parseInt(slotNumber));
         if (slotIndex === -1 || !slot.slots[slotIndex].booking) {
             return res.status(404).json({ message: 'Booking not found' });
         }
-// console.log(slotIndex)
-        
 
         // Get event details for notification
         const event = await Event.findOne({truckersmpId:slot.eventId});
-        console.log(event)
         if (!event) {
             return res.status(404).json({ message: 'Event not found' });
         }
 
-        console.log(event);
+        // Update the booking status and approvedBy
+        const booking = slot.slots[slotIndex].booking;
+        console.log('Current booking state:', {
+            status: booking.status,
+            approvedBy: booking.approvedBy,
+            vtcName: booking.vtcName
+        });
 
-        // Update the booking status
-        slot.slots[slotIndex].booking.status = status;
+        booking.status = status;
+        if (status === 'approved' && req.user) {
+            console.log('Setting approvedBy to user:', {
+                userId: req.user._id,
+                username: req.user.username
+            });
+            booking.approvedBy = req.user._id;
+        }
 
         // If rejected, make the slot available again
         if (status === 'rejected') {
@@ -366,15 +389,23 @@ router.patch('/:slotId/bookings/:slotNumber', async (req, res) => {
             slot.slots[slotIndex].booking = null;
         }
 
-        console.log("saving");
-        await slot.save();
-        console.log('Updated booking status:', slot.slots[slotIndex]);
+        console.log('Saving slot with updated booking:', {
+            status: booking.status,
+            approvedBy: booking.approvedBy,
+            isAvailable: slot.slots[slotIndex].isAvailable
+        });
 
-        // Send Discord webhook notification for status update
-      
+        await slot.save();
+        console.log('Updated booking status:', {
+            status: booking.status,
+            approvedBy: booking.approvedBy,
+            vtcName: booking.vtcName
+        });
+
         res.json({
             message: 'Booking status updated successfully',
-            status
+            status,
+            approvedBy: booking.approvedBy
         });
     } catch (error) {
         console.error('Error updating booking status:', error);
