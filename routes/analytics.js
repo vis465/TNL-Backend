@@ -124,7 +124,7 @@ router.get('/dashboard', adminAuth, async (req, res) => {
 // Export approved bookings as CSV
 router.get('/export', adminAuth, async (req, res) => {
     try {
-        const slots = await Slot.find();
+        const slots = await Slot.find().populate('slots.booking.approvedBy', 'username');
         const bookings = [];
 
         slots.forEach(slot => {
@@ -136,7 +136,8 @@ router.get('/export', adminAuth, async (req, res) => {
                         vtcName: s.booking.vtcName,
                         contactPerson: s.booking.name,
                         playerCount: s.booking.playercount,
-                        bookingDate: s.booking.createdAt
+                        bookingDate: s.booking.createdAt,
+                        approvedBy: s.booking.approvedBy ? s.booking.approvedBy.username : null
                     });
                 }
             });
@@ -148,7 +149,8 @@ router.get('/export', adminAuth, async (req, res) => {
             'vtcName',
             'contactPerson',
             'playerCount',
-            'bookingDate'
+            'bookingDate',
+            'approvedBy'
         ];
 
         const json2csvParser = new Parser({ fields });
@@ -285,7 +287,7 @@ router.get('/export-event-slots/:eventId', adminAuth, async (req, res) => {
 // Get recent bookings (latest 10)
 router.get('/recent-bookings', adminAuth, async (req, res) => {
     try {
-        const slots = await Slot.find();
+        const slots = await Slot.find().populate('slots.booking.approvedBy', 'username');
         const events = await Event.find();
         const eventMap = {};
         events.forEach(event => {
@@ -301,7 +303,8 @@ router.get('/recent-bookings', adminAuth, async (req, res) => {
                         slotNumber: s.number,
                         status: s.booking.status,
                         createdAt: s.booking.createdAt,
-                        discordUsername: s.booking.discordUsername || ''
+                        discordUsername: s.booking.discordUsername || '',
+                        approvedBy: s.booking.approvedBy ? s.booking.approvedBy.username : null
                     });
                 }
             });
